@@ -25,7 +25,7 @@ main{max-width:1460px;margin:auto;padding:24px 30px 42px;display:grid;gap:18px;m
 .tabline{background:#fff;border-bottom:1px solid var(--line)}
 #tabs{
   max-width:1460px;margin:auto;padding:5px 30px;display:grid;gap:4px;
-  grid-template-columns:repeat(11,minmax(0,1fr))
+  grid-template-columns:repeat(12,minmax(0,1fr))
 }
 .tab{
   --tab-ink:#176258;--tab-fill:#e4f4ef;
@@ -38,7 +38,7 @@ main{max-width:1460px;margin:auto;padding:24px 30px 42px;display:grid;gap:18px;m
 @media(max-width:620px){#tabs{padding-inline:12px}.tab{font-size:12px}}
 @media(max-width:540px){#tabs{grid-template-columns:repeat(3,minmax(0,1fr))}}
 .tab:is([data-tab="vis"],[data-tab="reward"]){--tab-ink:#804d1d;--tab-fill:#fbefdf}
-.tab:is([data-tab="members"],[data-tab="mbs"],[data-tab="points"]){--tab-ink:#2d557e;--tab-fill:#e9f1f9}
+.tab:is([data-tab="members"],[data-tab="mbsPlan"],[data-tab="mbs"],[data-tab="points"]){--tab-ink:#2d557e;--tab-fill:#e9f1f9}
 .tab:is([data-tab="cap"],[data-tab="combo"]){--tab-ink:#654582;--tab-fill:#f1ebf7}
 .tab:is([data-tab="ops"],[data-tab="sources"]){--tab-ink:#415966;--tab-fill:#ebf1f3}
 .tab:hover,.tab[aria-selected="true"]{color:var(--tab-ink);background:var(--tab-fill)}
@@ -60,6 +60,17 @@ main{max-width:1460px;margin:auto;padding:24px 30px 42px;display:grid;gap:18px;m
 .industry-link span{flex:none}
 .industry-view [data-sort][data-field="category"]{white-space:normal}
 .industry-view .data-table td:first-child{min-width:110px}
+.mbs-plan-messages{display:grid;gap:4px}
+#mbs-plan-status:empty{display:none}
+.mbs-plan-import{position:relative;cursor:pointer}
+.mbs-plan-import input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.mbs-plan-import:focus-within{outline:2px solid #008b80;outline-offset:3px}
+.mbs-plan-field{width:100%;min-width:105px;min-height:33px;padding:4px;border:1px solid #b9d2da;border-radius:6px;color:var(--navy);background:#fff}
+.mbs-plan-field:disabled,.mbs-plan-field[readonly]{background:var(--light)}
+.mbs-plan-amount{text-align:right;font-variant-numeric:tabular-nums}
+[data-table="mbsPlanWeeks"] thead th[scope="colgroup"]{text-align:center}
+[data-table="mbsPlanWeeks"] :is(th,td):first-child{min-width:125px}
+[data-table="mbsPlanShops"] td:nth-child(3){overflow-wrap:anywhere}
 .panel-head h3,.heading h2{overflow-wrap:anywhere}
 .heading h2{line-height:1.22}
 .panel-head .label{flex:none}
@@ -249,6 +260,9 @@ td .pace-badge{min-width:52px;text-align:center}
 @media (max-width:480px), (max-width:780px) and (orientation:portrait){
   .compact-table .data-table :is(tbody,tfoot) tr{gap:4px 5px;padding-block:5px 6px}
   .compact-table.pinned-stores .data-table :is(th,td):nth-child(-n+5){padding:0;white-space:normal}
+  .mbs-plan-field{min-width:0;min-height:36px;padding:3px}
+  [data-table="mbsPlanShops"] .data-table :is(th,td){min-width:0}
+  [data-table="mbsPlanShops"] td:nth-child(3){font-weight:750}
 }
 </style>
 </head>
@@ -325,7 +339,7 @@ const groupBy = (rows,key) => {
 const order = (rows,key) => [...rows].sort((a,b)=>(b[key]??-Infinity)-(a[key]??-Infinity));
 const tabs = [
   ["overview","Tổng quan"],["kpi","KPI ĐDKD"],["vis","VIS · Trưng bày"],
-  ["reward","Thưởng ngành hàng"],["members","MBS Hội viên"],["mbs","MBS · Gắn kết RTL"],["cap","Cáp Trần"],["combo","Combo Đơn hàng T11"],["points","Sử Dụng Điểm MBS"],
+  ["reward","Thưởng ngành hàng"],["members","MBS Hội viên"],["mbsPlan","KHBH MBS"],["mbs","MBS · Gắn kết RTL"],["cap","Cáp Trần"],["combo","Combo Đơn hàng T11"],["points","Sử Dụng Điểm MBS"],
   ["ops","Đơn bán & tồn kho"],["sources","Nguồn & đối soát"],
 ];
 const state = {
@@ -334,6 +348,7 @@ const state = {
   vis:{rep:ALL,visGroup:"display",visSummary:"ĐDKD",program:ALL,metric:"accepted",photo:ALL,day:ALL},
   reward:{rep:ALL},
   members:{rep:ALL,memberGroup:"Đại sứ",memberState:ALL,paceState:ALL,outletType:ALL,day:ALL},
+  mbsPlan:{rep:ALL,vipGroup:ALL},
   mbs:{rep:ALL,kind:"Tăng trưởng",program:ALL,status:ALL,day:ALL},
   cap:{rep:ALL,sku:ALL,capStatus:ALL,capView:"Từng SKU",outletType:ALL,day:ALL},
   combo:{rep:ALL,offer:"1-6ZHJRH",comboStatus:ALL,comboOrders:ALL,day:ALL},
@@ -481,7 +496,8 @@ function paintTable(id){
     '<tr'+rowRole+'>'+fields.map(c=>headerCell(c)).join("")+'</tr>';
   const renderRow=row=>'<tr'+rowRole+'>'+fields.map(c=>{
     const v=row[c.key];
-    const shown=c.fmt===badge||c.fmt===industryButton||percentageFormats.has(c.fmt)?c.fmt(v):esc(c.fmt?c.fmt(v):v??"—");
+    const shown=c.renderCell?c.renderCell(row):
+      c.fmt===badge||c.fmt===industryButton||percentageFormats.has(c.fmt)?c.fmt(v):esc(c.fmt?c.fmt(v):v??"—");
     const help=c.fmt===shortRep?v:c.key==="tetMissing"&&v?v.split(" + ")
       .map(group=>group+" · "+data.tetSkuOptions[group].join(", ")).join(" | "):null;
     const title=help?' title="'+esc(help)+'"':"";
@@ -518,8 +534,11 @@ function download(id){
   const exportedRows=spec.opts.footerRow?[...rows,spec.opts.footerRow]:rows;
   const csv=[spec.columns.map(c=>cell(csvHeader(c))).join(","),...exportedRows.map(row=>
     spec.columns.map(c=>cell(c.csvFmt?c.csvFmt(row[c.key]):row[c.key])).join(","))].join("\r\n");
-  const href=URL.createObjectURL(new Blob(["\ufeff",csv],{type:"text/csv;charset=utf-8"}));
-  const a=document.createElement("a");a.href=href;a.download="Quoc_Thai_T11_"+id+".csv";a.click();
+  downloadFile("Quoc_Thai_T11_"+id+".csv",new Blob(["\ufeff",csv],{type:"text/csv;charset=utf-8"}));
+}
+function downloadFile(filename,blob){
+  const href=URL.createObjectURL(blob);
+  const a=document.createElement("a");a.href=href;a.download=filename;a.click();
   setTimeout(()=>URL.revokeObjectURL(href),3000);
 }
 function horizontal(title,values,format,unit){
@@ -1231,7 +1250,8 @@ function evidence(){
     table("evidence","Công văn và dữ liệu cần bổ sung",get("notes"),basic(["topic","Mảng"],["item","Nội dung"],["evidence","Căn cứ"],["status","Trạng thái",badge]))+
     panel("Danh mục nguồn",sources("overview_orders","overview_industries","overview_industry_brands","kpi","mcp_coverage","dispatch","inventory","vis","dl","category","reward_noodle","reward_meat","reward_xo_aso","reward_photos","members","mbs","cap","combo","point_usage","payback"));
 }
-const views={overview,kpi,vis,reward,members,mbs,cap,combo,points,ops,sources:evidence};
+const mbsPlanning=createMbsPlanning();
+const views={overview,kpi,vis,reward,members,mbsPlan:mbsPlanning.view,mbs,cap,combo,points,ops,sources:evidence};
 function render(){
   nav.querySelectorAll("button").forEach(button=>{
     const selected=button.dataset.tab===active;
@@ -1375,6 +1395,281 @@ root.addEventListener("click",event=>{
 });
 render();
 
+
+function createMbsPlanning(){
+  const levels=[
+    {key:"under50",label:"<50%",within:value=>value>=0&&value<.5},
+    {key:"50to90",label:"50 - 90%",within:value=>value>=.5&&value<=.9},
+    {key:"m1",label:"M1 95%",amount:shop=>Math.round(shop.target)},
+    {key:"m2",label:"M2 100%",amount:shop=>Math.round(shop.reference)},
+    {key:"m3",label:"M3 >105%",within:value=>value>1.05},
+  ];
+  const levelsByKey=new Map(levels.map(level=>[level.key,level]));
+  const [,month,year]=salesCalendar.date.split("/");
+  const period=year+"-"+month;
+  const schema="quoc-thai.mbs-sales-plan";
+  const storagePrefix=schema+"."+period+".";
+  const lastDay=new Date(Number(year),Number(month),0).getDate();
+  const padDay=day=>String(day).padStart(2,"0");
+  const weeks=Array.from({length:Math.ceil(lastDay/7)},(_,index)=>{
+    const start=7*index+1,end=Math.min(lastDay,start+6);
+    return {key:String(index+1),label:"Tuần "+(index+1)+" · "+padDay(start)+"–"+padDay(end)+"/"+month};
+  });
+  const weekOptions=[{key:"",label:"Chưa phân tuần"},...weeks];
+  const vipTypes=["VIP 3","VIP 5","VIP Sỉ"];
+  const vipLabels={"VIP 3":"VIP3","VIP 5":"VIP5","VIP Sỉ":"VIPSI"};
+  const shops=get("members").map(row=>withMcp(row));
+  const shopsByCode=new Map(shops.map(shop=>[shop.outlet,shop]));
+  const outletTypes=uniq(shops,"outletType");
+  const plans=new Map();
+  let storageAvailable=true;
+  let message="";
+
+  function readEntry(value){
+    if(!value||typeof value.outlet!=="string"||!shopsByCode.has(value.outlet)||
+       !Number.isSafeInteger(value.updated)||value.updated<=0) throw Error("Dòng kế hoạch không hợp lệ.");
+    const shop=shopsByCode.get(value.outlet);
+    if(value.level===null) return {outlet:shop.outlet,level:null,week:"",amount:null,updated:value.updated};
+    const level=levelsByKey.get(value.level);
+    if(!level||!weekOptions.some(week=>week.key===value.week)) throw Error("Mức kế hoạch hoặc tuần không hợp lệ.");
+    const amount=level.amount?null:value.amount;
+    if(amount!==null&&(!Number.isSafeInteger(amount)||!level.within(amount/shop.reference))){
+      throw Error("Doanh số kế hoạch phải thuộc khoảng "+level.label+" của doanh số nền.");
+    }
+    return {outlet:shop.outlet,level:level.key,week:value.week,amount,updated:value.updated};
+  }
+  try{
+    for(const shop of shops){
+      const value=localStorage.getItem(storagePrefix+shop.outlet);
+      if(!value) continue;
+      try{
+        const entry=readEntry(JSON.parse(value));
+        if(entry.outlet===shop.outlet) plans.set(shop.outlet,entry);
+      }catch{
+        message="Có dòng kế hoạch đã lưu không đọc được. Anh có thể nhập lại từ tệp kế hoạch.";
+      }
+    }
+  }catch{
+    storageAvailable=false;
+  }
+  const storageNote=()=>storageAvailable?"Kế hoạch lưu trên trình duyệt này. Dùng tệp KH để chuyển máy hoặc gom kế hoạch đội.":
+    "Trình duyệt đang chặn lưu. Tải tệp KH trước khi đóng trang để giữ các lựa chọn.";
+  function announce(text){
+    message=text;
+    const status=root.querySelector("#mbs-plan-status");
+    if(status) status.textContent=text;
+    const note=root.querySelector("#mbs-plan-storage");
+    if(note) note.textContent=storageNote();
+  }
+  function save(entry){
+    plans.set(entry.outlet,entry);
+    if(storageAvailable) try{
+      localStorage.setItem(storagePrefix+entry.outlet,JSON.stringify(entry));
+    }catch{
+      storageAvailable=false;
+    }
+  }
+  function withPlan(shop){
+    const entry=plans.get(shop.outlet);
+    const level=levelsByKey.get(entry?.level);
+    return {...shop,levelKey:level?.key??"",choice:level?.label??null,weekKey:entry?.week??"",
+      weekLabel:weeks.find(week=>week.key===entry?.week)?.label??null,
+      plannedAmount:level?.amount?level.amount(shop):entry?.amount??null};
+  }
+  function totals(rows){
+    const selected=rows.filter(row=>row.levelKey);
+    return {stores:rows.length,planned:selected.length,unplanned:rows.length-selected.length,
+      lackingAmount:selected.filter(row=>row.plannedAmount===null).length,coverage:ratio(selected.length,rows.length),
+      target:present(rows,"target"),actual:present(rows,"actual"),plannedAmount:present(selected,"plannedAmount"),
+      ...Object.fromEntries(levels.map(level=>[level.key,selected.filter(row=>row.levelKey===level.key).length]))};
+  }
+  function weekTotals(rows){
+    const selected=rows.filter(row=>row.levelKey);
+    const breakdown={planned:selected.length,plannedAmount:present(selected,"plannedAmount")};
+    for(const week of weekOptions){
+      const group=cut(selected,"weekKey",week.key);
+      breakdown["count"+week.key]=group.length;
+      breakdown["amount"+week.key]=present(group,"plannedAmount");
+    }
+    return breakdown;
+  }
+  function models(s){
+    const rows=cut(cut(shops,"rep",s.rep),"outletType",s.vipGroup).map(withPlan);
+    const vipRows=rows.filter(row=>vipTypes.includes(row.outletType));
+    return {
+      mbsPlanShops:{rows},
+      mbsPlanRep:{rows:rowsForReps(rows,s.rep,totals),footerRow:{rep:"Toàn phạm vi",...totals(rows)}},
+      mbsPlanVip:{rows:vipTypes.filter(type=>s.vipGroup===ALL||type===s.vipGroup)
+        .map(type=>({vip:vipLabels[type],...totals(cut(vipRows,"outletType",type))})),
+        footerRow:{vip:"Tổng VIP",...totals(vipRows)}},
+      mbsPlanWeeks:{rows:rowsForReps(rows,s.rep,weekTotals),footerRow:{rep:"Toàn phạm vi",...weekTotals(rows)}},
+    };
+  }
+  const options=(choices,selected)=>choices.map(({key,label})=>'<option value="'+esc(key)+'"'+
+    (key===selected?" selected":"")+'>'+esc(label)+'</option>').join("");
+  const fieldAttrs=(shop,field,label)=>' data-mbs-field="'+field+'" data-outlet="'+esc(shop.outlet)+
+    '" aria-label="'+esc(label+" · "+shop.store+" · "+shop.outlet)+'"';
+  function levelCell(shop){
+    return '<select class="mbs-plan-field"'+fieldAttrs(shop,"level","Kế hoạch")+'>'+
+      options([{key:"",label:"Chưa chọn"},...levels],shop.levelKey)+'</select>';
+  }
+  function weekCell(shop){
+    return '<select class="mbs-plan-field"'+fieldAttrs(shop,"week","Tuần KH")+(shop.levelKey?"":" disabled")+'>'+
+      options(weekOptions,shop.weekKey)+'</select>';
+  }
+  function amountCell(shop){
+    return '<input class="mbs-plan-field mbs-plan-amount" type="number" inputmode="numeric" min="0" step="1"'+
+      fieldAttrs(shop,"amount","Doanh số kế hoạch, đồng")+' value="'+(shop.plannedAmount??"")+'" placeholder="Nhập số tiền"'+
+      (levelsByKey.get(shop.levelKey)?.within?"":" readonly")+'>';
+  }
+  const perMillion=value=>value==null?"—":n(value/1e6);
+  const summaryCols=basic(["stores","Số CH",i],["planned","Có KH",i],["unplanned","Chưa KH",i],
+    ["coverage","% có KH",percentCell],["plannedAmount","DS KH",perMillion,"Doanh số kế hoạch (đồng)"],
+    ["target","CT Mức 1",perMillion,"Chỉ tiêu Mức 1 (đồng)"],["actual","Thực hiện",perMillion,"Thực hiện (đồng)"],
+    ["lackingAmount","Thiếu DS KH",i],...levels.map(level=>[level.key,level.label,i]));
+  const weekCols=basic(["rep","ĐDKD"],["planned","CH có KH",i],["plannedAmount","DS KH",perMillion,"Doanh số kế hoạch (đồng)"]);
+  for(const week of [...weeks,weekOptions[0]]){
+    weekCols.push({...column("count"+week.key,"CH",i),group:week.label},
+      {...column("amount"+week.key,"DS KH",perMillion,week.label+" · Doanh số kế hoạch (đồng)"),group:week.label});
+  }
+  function view(s){
+    const data=models(s);
+    const summary={search:false,allRows:true,unit:"Triệu đồng"};
+    return header("KHBH MBS",month+"/"+year+" · Kế hoạch bán hàng hội viên MBS Tết")+
+      controls(dropdown("rep","ĐDKD",s.rep,repChoices(shops)),
+        dropdown("vipGroup","Hạng cửa hàng",s.vipGroup,[ALL,...outletTypes.map(type=>[type,vipLabels[type]??type])]),
+        '<button type="button" class="control-button" data-mbs-export>Xuất tệp KH</button>',
+        '<label class="control-button mbs-plan-import">Nhập tệp KH<input type="file" data-mbs-import accept=".json,application/json" aria-label="Nhập tệp KH"></label>')+
+      '<div class="mbs-plan-messages"><p class="note" id="mbs-plan-storage">'+esc(storageNote())+'</p>'+
+      '<p class="note" id="mbs-plan-status" role="status">'+esc(message)+'</p></div>'+
+      table("mbsPlanShops","1. Mục tiêu doanh số MBS",data.mbsPlanShops.rows,[
+        ...basic(["rep","ĐDKD",shortRep],["outlet","Mã CH"],["store","Cửa hàng"],["outletType","Hạng CH",value=>vipLabels[value]??value],
+          ["reference","Doanh số nền",money],["target","CT Mức 1",money],["actual","Thực hiện",money]),
+        {...column("choice","Kế hoạch"),renderCell:levelCell},
+        {...column("weekLabel","Tuần KH"),renderCell:weekCell},
+        {...column("plannedAmount","DS kế hoạch",money),renderCell:amountCell}],
+        {compactMobile:true,unit:"Đồng",sources:["members","mcp_coverage"],
+          note:"Các mức kế hoạch tính trên doanh số nền. M1 và M2 tự điền số tiền. Ba mức theo khoảng cần nhập doanh số dự kiến. Chọn tuần thực hiện của từng cửa hàng."})+
+      table("mbsPlanRep","2. Tổng quan KHBH MBS theo ĐDKD",data.mbsPlanRep.rows,[column("rep","ĐDKD"),...summaryCols],
+        {...summary,countLabel:"ĐDKD",footerRow:data.mbsPlanRep.footerRow,
+          note:"Có KH đếm cửa hàng đã chọn mức. DS KH cộng các cửa hàng có số tiền. Thực hiện lấy từ báo cáo MBS Tết."})+
+      table("mbsPlanVip","3. Tổng quan KHBH MBS theo nhóm VIP",data.mbsPlanVip.rows,[column("vip","Nhóm VIP"),...summaryCols],
+        {...summary,footerRow:data.mbsPlanVip.footerRow,
+          note:"Hạng VIP3, VIP5 và VIPSI lấy theo MCP 25/10."})+
+      table("mbsPlanWeeks","4. Tổng quan KHBH MBS theo ĐDKD phân kỳ theo tuần",data.mbsPlanWeeks.rows,weekCols,
+        {...summary,groupHeaders:true,countLabel:"ĐDKD",footerRow:data.mbsPlanWeeks.footerRow,
+          note:"Mỗi cửa hàng vào một tuần đã chọn. Mỗi tuần hiển thị số cửa hàng có kế hoạch và doanh số kế hoạch. Kế hoạch chưa chọn tuần nằm ở cột cuối."});
+  }
+  function updateTables(field){
+    if(active!=="mbsPlan") return;
+    const data=models(state.mbsPlan);
+    for(const [id,model] of Object.entries(data)){
+      const spec=tableSpecs.get(id);
+      Object.assign(spec,{rows:model.rows});
+      spec.opts.footerRow=model.footerRow;
+      if(id==="mbsPlanShops"&&field) continue;
+      paintTable(id);
+    }
+    if(!field) return;
+    const model=data.mbsPlanShops.rows.find(row=>row.outlet===field.dataset.outlet);
+    const row=field.closest("tr");
+    const week=row.querySelector('[data-mbs-field="week"]');
+    const amount=row.querySelector('[data-mbs-field="amount"]');
+    if(field.dataset.mbsField==="level"){
+      week.disabled=!model.levelKey;
+      week.value=model.weekKey;
+      amount.readOnly=!levelsByKey.get(model.levelKey)?.within;
+      amount.value=model.plannedAmount??"";
+      amount.setCustomValidity("");
+    }
+  }
+  function changeField(field){
+    const outlet=field.dataset.outlet;
+    let entry=plans.get(outlet)??{outlet,level:null,week:"",amount:null,updated:0};
+    entry={...entry,updated:Math.max(Date.now(),entry.updated+1)};
+    const value=field.value;
+    if(field.dataset.mbsField==="level"){
+      entry.level=value||null;
+      entry.amount=null;
+    }else if(field.dataset.mbsField==="week"){
+      entry.week=value;
+    }else{
+      if(field.validity.badInput){announce("Nhập doanh số kế hoạch bằng số đồng.");return;}
+      entry.amount=value===""?null:Number(value);
+    }
+    try{
+      entry=readEntry(entry);
+    }catch(error){
+      field.setCustomValidity(error.message);
+      field.reportValidity();
+      announce(error.message);
+      return;
+    }
+    field.setCustomValidity("");
+    save(entry);
+    updateTables(field);
+    announce(storageAvailable?"Đã lưu kế hoạch trên trình duyệt.":"Đã lưu tạm trong phiên.");
+  }
+  function exportPlans(){
+    const rep=state.mbsPlan.rep;
+    const rows=[...plans.values()].filter(entry=>rep===ALL||shopsByCode.get(entry.outlet).rep===rep);
+    if(!rows.length){announce("Phạm vi này chưa có kế hoạch để xuất.");return;}
+    const payload={schema,version:1,period,plans:rows};
+    downloadFile("KHBH_MBS_"+period+(rep===ALL?"":"_"+rep.replace(/\s+/g,"_"))+".json",
+      new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}));
+    announce("Đã xuất tệp chứa "+i(rows.length)+" dòng thay đổi kế hoạch.");
+  }
+  async function importPlans(file){
+    try{
+      if(file.size>256000) throw Error("Tệp kế hoạch vượt quá dung lượng cho phép.");
+      const payload=JSON.parse(await file.text());
+      if(payload?.schema!==schema||payload.version!==1||payload.period!==period||
+         !Array.isArray(payload.plans)||payload.plans.length>shops.length){
+        throw Error("Chọn tệp KH xuất từ dashboard này cho tháng "+month+"/"+year+".");
+      }
+      const entries=payload.plans.map(readEntry);
+      if(new Set(entries.map(entry=>entry.outlet)).size!==entries.length) throw Error("Tệp có cửa hàng trùng.");
+      let count=0;
+      for(const entry of entries){
+        if(entry.updated<=(plans.get(entry.outlet)?.updated??0)) continue;
+        save(entry);
+        count++;
+      }
+      updateTables();
+      announce("Đã gộp "+i(count)+" dòng. Giữ "+i(entries.length-count)+" dòng đang có bản cùng thời điểm hoặc mới hơn.");
+    }catch(error){
+      announce(error instanceof SyntaxError?"Tệp KH không đọc được. Chọn tệp JSON xuất từ dashboard.":error.message);
+    }
+  }
+  root.addEventListener("change",event=>{
+    const field=event.target;
+    if(field.dataset.mbsField) changeField(field);
+    if(field.hasAttribute("data-mbs-import")&&field.files[0]){
+      const file=field.files[0];
+      field.value="";
+      void importPlans(file);
+    }
+  });
+  root.addEventListener("input",event=>{
+    if(event.target.dataset.mbsField==="amount") event.target.setCustomValidity("");
+  });
+  root.addEventListener("click",event=>{
+    if(event.target.closest("[data-mbs-export]")) exportPlans();
+  });
+  window.addEventListener("storage",event=>{
+    if(!event.key?.startsWith(storagePrefix)) return;
+    const outlet=event.key.slice(storagePrefix.length);
+    if(!shopsByCode.has(outlet)) return;
+    if(!event.newValue) plans.delete(outlet);
+    else try{
+      const entry=readEntry(JSON.parse(event.newValue));
+      if(entry.outlet!==outlet) return;
+      plans.set(outlet,entry);
+    }catch{return;}
+    if(!root.contains(document.activeElement)||!document.activeElement?.dataset.mbsField) updateTables();
+  });
+  return {view};
+}
 
 </script>
 </body>
