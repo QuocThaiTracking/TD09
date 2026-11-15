@@ -226,7 +226,7 @@ td .pace-badge{min-width:52px;text-align:center}
 }
 @media (max-width:1040px), (any-pointer:coarse){
   .display-scale{display:flex}
-  .industry-view,.section-break[id],#mcp-coverage{scroll-margin-block-start:48px}
+  html{scroll-padding-block-start:46px}
   .data-table{line-height:1.22}
   .data-table th,.data-table td{padding:5px 5px}
   .data-table td{min-width:52px}
@@ -1257,16 +1257,20 @@ const [scaleDown,scaleReset,scaleUp]=displayScale.querySelectorAll("button");
 displayScale.addEventListener("click",event=>{
   const button=event.target.closest("[data-scale-step],[data-scale-reset]");
   if(!button) return;
+  const nextIndex=button===scaleReset?defaultScaleIndex:scaleIndex+Number(button.dataset.scaleStep);
+  if(nextIndex===scaleIndex) return;
   const anchor=window.scrollY?document.elementFromPoint(document.documentElement.clientWidth/2,
-    displayScale.getBoundingClientRect().bottom+16):null;
-  const top=dashboardShell.contains(anchor)?anchor.getBoundingClientRect().top:null;
-  scaleIndex=button===scaleReset?defaultScaleIndex:scaleIndex+Number(button.dataset.scaleStep);
+    displayScale.getBoundingClientRect().bottom+16)?.closest(".scroll,.panel,.stat,.heading,.tabline,.mast"):null;
+  const top=anchor?.getBoundingClientRect().top;
+  scaleIndex=nextIndex;
   const scale=scaleOptions[scaleIndex];
   dashboardShell.style.setProperty("--display-scale",scale/100);
   scaleReset.textContent=scale+"%";
   scaleDown.disabled=scaleIndex===0;
   scaleUp.disabled=scaleIndex===scaleOptions.length-1;
-  if(top!==null) window.scrollBy(0,anchor.getBoundingClientRect().top-top);
+  if(anchor) requestAnimationFrame(()=>{
+    if(anchor.isConnected) window.scrollBy({top:anchor.getBoundingClientRect().top-top,behavior:"instant"});
+  });
 });
 nav.addEventListener("click",event=>{
   const tab=event.target.closest("[data-tab]");
