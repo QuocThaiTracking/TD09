@@ -51,7 +51,7 @@ main{max-width:1460px;margin:auto;padding:24px 30px 42px;display:grid;gap:18px;m
 .display-scale .control-button{min-width:36px;min-height:34px;padding:0 5px}
 .display-scale [data-scale-step]{font-size:18px;line-height:1}
 .display-scale [data-scale-reset]{min-width:47px;font-variant-numeric:tabular-nums}
-#dashboard-shell{zoom:var(--display-scale,1)}
+#dashboard-shell{zoom:var(--display-scale,1);overflow-anchor:none}
 #percent-key:not(:empty){padding-block:6px}
 @media(max-width:620px){.view-tools{padding-inline:12px}}
 .industry-view{min-width:0}
@@ -1254,13 +1254,28 @@ const scaleOptions=[75,85,100,115,130,150];
 const defaultScaleIndex=scaleOptions.indexOf(100);
 let scaleIndex=defaultScaleIndex;
 const [scaleDown,scaleReset,scaleUp]=displayScale.querySelectorAll("button");
+function displayReference(){
+  if(!window.scrollY) return null;
+  const toolbarBottom=displayScale.getBoundingClientRect().bottom;
+  let largestVisibleHeight=0;
+  let reference=null;
+  for(const box of root.querySelectorAll(".scroll")){
+    const {top,bottom}=box.getBoundingClientRect();
+    const visibleHeight=Math.min(bottom,window.innerHeight)-Math.max(top,toolbarBottom);
+    if(visibleHeight>largestVisibleHeight){
+      largestVisibleHeight=visibleHeight;
+      reference=box;
+    }
+  }
+  return reference??document.elementFromPoint(document.documentElement.clientWidth/2,toolbarBottom+16)
+    ?.closest(".panel,.stat,.heading,.tabline,.mast");
+}
 displayScale.addEventListener("click",event=>{
   const button=event.target.closest("[data-scale-step],[data-scale-reset]");
   if(!button) return;
   const nextIndex=button===scaleReset?defaultScaleIndex:scaleIndex+Number(button.dataset.scaleStep);
   if(nextIndex===scaleIndex) return;
-  const anchor=window.scrollY?document.elementFromPoint(document.documentElement.clientWidth/2,
-    displayScale.getBoundingClientRect().bottom+16)?.closest(".scroll,.panel,.stat,.heading,.tabline,.mast"):null;
+  const anchor=displayReference();
   const top=anchor?.getBoundingClientRect().top;
   scaleIndex=nextIndex;
   const scale=scaleOptions[scaleIndex];
